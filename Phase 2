@@ -1,0 +1,319 @@
+#Task1
+
+from numpy import array
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.layers import SimpleRNN
+from keras.callbacks import ModelCheckpoint
+from sklearn.preprocessing import MinMaxScaler
+import math
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn import metrics
+from sklearn.metrics import mean_squared_error
+import pandas as pd
+from sklearn.metrics import accuracy_score
+from sklearn.metrics import confusion_matrix
+import matplotlib.pylab as plt
+%matplotlib inline
+from matplotlib.pylab import rcParams
+import numpy as np
+from sklearn.model_selection import train_test_split
+import warnings
+import matplotlib.pylab as plt
+%matplotlib inline
+from matplotlib.pylab import rcParams
+from matplotlib import style
+import datetime
+import matplotlib.dates
+from datetime import datetime
+from __future__ import division
+
+
+
+
+rcParams['figure.figsize'] = 15, 6
+rcParams['axes.titlesize'] = 'xx-large'
+rcParams['axes.titleweight'] = 'bold'
+rcParams["legend.loc"] = 'upper left'
+
+url = 'http://kdl.cs.umb.edu/CS670/data/Ganges_1996_2016.csv'
+dateparse = lambda dates: pd.datetime.strptime(dates, '%Y-%m-%d')
+data = pd.read_csv(url, parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+data = data.astype('float64')
+data.dropna(inplace = True)
+plt.title("Original Data")
+plt.plot(data)
+
+
+def dropna():
+  for i in range(1,len(data)):                                             #assume first value is not absent
+      if math.isnan(data['Q (m3/s)'][i]):    
+        data['Q (m3/s)'][i] = data['Q (m3/s)'][i-1]
+      
+  data.plot()
+  return data
+#Task 2 - RNN & LSTM
+
+
+def split_sequence(sequence, n_steps):
+	X, y = list(), list()
+	for i in range(len(sequence)):
+		# find the end of this pattern
+		end_ix = i + n_steps
+		# check if we are beyond the sequence
+		if end_ix > len(sequence)-1:
+			break
+		# gather input and output parts of the pattern
+		seq_x, seq_y = sequence.iloc[i:end_ix].values, sequence.iloc[end_ix].values
+		X.append(seq_x)
+		y.append(seq_y)
+	return array(X), array(y)
+
+n_steps = 20
+X, y = split_sequence(data, n_steps)
+#print (X)
+#print(y)
+print ('(samples, timesteps, features): '+ str(X.shape))
+
+X_train, y_train = X[:-2536],y[:-2536]
+X_valid, y_valid = X[-2536:-1806],y[-2536:-1806]
+X_test, y_test = X[-1806:],y[-1806:]
+print (X_train.shape,X_valid.shape,X_test.shape)
+
+
+rnn = Sequential()
+rnn.add(SimpleRNN(10, activation='relu', input_shape=(n_steps, 1)))
+rnn.add(Dense(1))
+rnn.compile(optimizer='adam', loss='mse')
+
+rnn.fit(X_train, y_train, validation_data = (X_valid, y_valid), epochs=400, verbose=1 )
+
+
+print(rnn.summary())
+
+# make predictions
+predict = rnn.predict(X_test)
+# calculate root mean squared error
+testScore = math.sqrt(mean_squared_error(y_test, predict))
+
+# Task 2 - Plot RNN for original Data
+
+print('Test Score: %.2f RMSE' % (testScore))
+
+
+
+
+predict_plot = pd.DataFrame(predict,index=data.index[-1806:])
+plt.plot(data)
+plt.title("RNN for original data")
+plt.plot(predict_plot)
+plt.show()
+
+
+print('Mean Absolute Error=', metrics.mean_absolute_error(y_test, predict))
+print('Mean Squared Error=' , metrics.mean_squared_error(y_test, predict))
+
+
+
+from keras import regularizers
+
+rnn.add(Dense(1, input_dim=20,
+                kernel_regularizer=regularizers.l2(0.01)))
+
+
+print(rnn.summary())
+
+# make predictions
+predict = rnn.predict(X_test)
+# calculate root mean squared error
+testScore = math.sqrt(mean_squared_error(y_test, predict))
+print('Test Score: %.2f RMSE' % (testScore))
+
+
+predict_plot = pd.DataFrame(predict,index=data.index[-1806:])
+pyplot.title('Regularisation for RNN ')
+plt.plot(data)
+plt.plot(predict_plot)
+plt.show()
+
+
+
+from keras.layers.core import Dropout
+
+rnn = Sequential([
+ Dense(output_dim=1, input_dim=20, activation='relu'),
+ Dropout(0.25),
+
+Dense(output_dim=1, input_dim=20, activation='softmax'),
+ ])
+ 
+ # LSTM for Original Data
+from keras.layers import LSTM
+from keras.models import Sequential
+from keras.layers import Dense
+from matplotlib import pyplot
+
+model = Sequential()
+model.add(LSTM(10, activation='linear', input_shape=(n_steps, 1)))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mse')
+
+history=model.fit(X_train, y_train, validation_data = (X_valid, y_valid), epochs=400, verbose=1)
+#print(model.summary())
+
+
+# Task 2 Plot LSTM for original Data
+pyplot.plot(history.history['loss'])
+pyplot.plot(history.history['val_loss'])
+pyplot.title('model train vs validation loss for original Data')
+pyplot.ylabel('loss')
+pyplot.xlabel('epoch')
+pyplot.legend(['train', 'validation'], loc='upper right')
+pyplot.show()
+
+# make predictions
+predict = model.predict(X_test)
+# calculate root mean squared error
+#Task 2 - Plot LSTM for Original Data
+testScore = math.sqrt(mean_squared_error(y_test, predict))
+print('Test Score: %.2f RMSE' % (testScore))
+
+predict_plot = pd.DataFrame(predict,index=data.index[-1806:])
+plt.plot(data)
+plt.title("LSTM for Original Data")
+plt.plot(predict_plot)
+
+plt.show()
+
+# Task 3 - Make Data Stationary
+
+
+url = 'http://kdl.cs.umb.edu/CS670/data/Ganges_1996_2016.csv'
+dateparse = lambda dates: pd.datetime.strptime(dates, '%Y-%m-%d')
+data = pd.read_csv(url, parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+data = data.astype('float64')
+data.dropna(inplace = True)
+plt.plot(data)
+
+
+def dropna():
+  for i in range(1,len(data)):                                             #assume first value is not absent
+      if math.isnan(data['Q (m3/s)'][i]):    
+        data['Q (m3/s)'][i] = data['Q (m3/s)'][i-1]
+      
+  data.plot()
+  return data
+
+dropna()
+
+from statsmodels.tsa.stattools import adfuller
+def test_stationarity(timeseries):
+    
+    #Determing rolling statistics
+    rolmean = timeseries.rolling(window=12,center=False).mean()
+    rolstd = timeseries.rolling(window=12,center=False).std()
+
+    #Plot rolling statistics:
+    orig = plt.plot(timeseries, color='blue',label='Original')
+    mean = plt.plot(rolmean, color='red', label='Rolling Mean')
+    std = plt.plot(rolstd, color='black', label = 'Rolling Std')
+    plt.legend(loc='best')
+    plt.title('Rolling Mean & Standard Deviation')
+    plt.show(block=False)
+    
+    #Perform Dickey-Fuller test:
+    print ('Results of Dickey-Fuller Test:')
+    dftest = adfuller(timeseries, autolag='AIC')
+    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic','p-value','#Lags Used','Number of Observations Used'])
+    for key,value in dftest[4].items():
+        dfoutput['Critical Value (%s)'%key] = value
+    print (dfoutput)
+
+ts_log_x = np.log(data)
+
+test_stationarity(data['Q (m3/s)'])
+
+#Part3
+n_steps = 20
+X, y = split_sequence(data, n_steps)
+#print (X)
+#print(y)
+print ('(samples, timesteps, features): '+ str(X.shape))
+
+X_train, y_train = X[:-2536],y[:-2536]
+X_valid, y_valid = X[-2536:-1806],y[-2536:-1806]
+X_test, y_test = X[-1806:],y[-1806:]
+print (X_train.shape,X_valid.shape,X_test.shape)
+
+# Task 3 remove seasonality to make data stationary
+
+
+#function which help to remove seasonality
+
+# create a differenced series
+def difference(dataset, interval=1):
+	diff = list()
+	for i in range(interval, len(dataset)):
+		value = dataset[i] - dataset[i - interval]
+		diff.append(value)
+	return np.array(diff)
+ 
+# invert differenced value
+def inverse_difference(history, yhat, interval=1):
+	return yhat + history[-interval]
+
+test_stationarity(data['Q (m3/s)'])
+
+# Remove Seasnality using Seasonal difference
+X = X_train
+Y = y_train
+days_in_year = 365
+differenced = difference(X, days_in_year)
+differenced_y = difference(Y, days_in_year)
+# Task 3 - Plot RNN for Stationary Data
+
+rnn = Sequential()
+rnn.add(SimpleRNN(10, activation='relu', input_shape=(n_steps, 1)))
+rnn.add(Dense(1))
+rnn.compile(optimizer='adam', loss='mse')
+
+rnn.fit(differenced, differenced_y, validation_data = (X_valid, y_valid), epochs=400, verbose=1 )
+
+
+print(rnn.summary())
+# Task 3 Plot LSTM for stationary data
+from keras.layers import LSTM
+from keras.models import Sequential
+from keras.layers import Dense
+from matplotlib import pyplot
+
+model = Sequential()
+model.add(LSTM(10, activation='linear', input_shape=(n_steps, 1)))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mse')
+
+history=model.fit(differenced, differenced_y, validation_data = (X_valid, y_valid), epochs=400, verbose=1)
+#print(model.summary())
+# Task 3 Plot LSTM for Stationary Data
+pyplot.plot(history.history['loss'])
+pyplot.plot(history.history['val_loss'])
+pyplot.title('model train vs validation loss for Stationary Data')
+pyplot.ylabel('loss')
+pyplot.xlabel('epoch')
+pyplot.legend(['train', 'validation'], loc='upper right')
+pyplot.show()
+
+# make predictions
+predict = model.predict(X_test)
+# calculate root mean squared error
+testScore = math.sqrt(mean_squared_error(y_test, predict))
+print('Test Score: %.2f RMSE' % (testScore))
+
+predict_plot = pd.DataFrame(predict,index=data.index[-1806:])
+plt.plot(data)
+plt.title("LSTM for Stationary Data")
+plt.plot(predict_plot)
+plt.show()
+
+
