@@ -1,0 +1,101 @@
+from numpy import array
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from keras.layers import Flatten
+from keras.layers.convolutional import Conv1D
+from keras.layers.convolutional import MaxPooling1D
+from keras.callbacks import ModelCheckpoint
+from sklearn.preprocessing import MinMaxScaler
+import math
+import numpy as np
+from sklearn.metrics import mean_squared_error
+import pandas as pd
+import matplotlib.pylab as plt
+%matplotlib inline
+from matplotlib.pylab import rcParams
+rcParams['figure.figsize'] = 15, 6
+rcParams['axes.titlesize'] = 'xx-large'
+rcParams['axes.titleweight'] = 'bold'
+rcParams["legend.loc"] = 'upper left'
+
+url = 'http://kdl.cs.umb.edu/CS670/data/Ganges_1996_2016.csv'
+dateparse = lambda dates: pd.datetime.strptime(dates, '%Y-%m-%d')
+data = pd.read_csv(url, parse_dates=['Date'], index_col='Date',date_parser=dateparse)
+data = data.astype('float32')
+data.dropna(inplace = True)
+plt.title("Original Data")
+
+
+def dropna():
+  for i in range(1,len(data)):                                             #assume first value is not absent
+      if math.isnan(data['Q (m3/s)'][i]):    
+        data['Q (m3/s)'][i] = data['Q (m3/s)'][i-1]
+      
+  data.plot()
+  return data
+
+plt.plot(data)
+
+def split_sequence(sequence, n_steps):
+	X, y = list(), list()
+	for i in range(len(sequence)):
+		# find the end of this pattern
+		end_ix = i + n_steps
+		# check if we are beyond the sequence
+		if end_ix > len(sequence)-1:
+			break
+		# gather input and output parts of the pattern
+		seq_x, seq_y = sequence.iloc[i:end_ix].values, sequence.iloc[end_ix].values
+		X.append(seq_x)
+		y.append(seq_y)
+	return array(X), array(y)
+
+n_steps = 20
+X, y = split_sequence(data, n_steps)
+#print (X)
+#print(y)
+print ('(samples, timesteps, features): '+ str(X.shape))
+X_train, y_train = X[:-2536],y[:-2536]
+X_valid, y_valid = X[-2536:-1806],y[-2536:-1806]
+X_test, y_test = X[-1806:],y[-1806:]
+print (X_train.shape,X_valid.shape,X_test.shape)
+
+
+n_outputs = X_train.shape[1], X_train.shape[2], y_train.shape[1]
+# Build CNN
+#Added more layers - Barkha
+cnn = Sequential()
+cnn.add(Conv1D(filters=64, kernel_size=3, activation='relu', input_shape=(X_train.shape[1], X_train.shape[2])))
+cnn.add(Conv1D(filters=32, kernel_size=3, activation='relu'))
+cnn.add(MaxPooling1D(pool_size=2))
+cnn.add(Conv1D(filters=16, kernel_size=3, activation='relu'))
+cnn.add(MaxPooling1D(pool_size=2))
+cnn.add(Flatten())
+cnn.add(Dense(100, activation='relu'))
+cnn.add(Dense(1))
+from keras import optimizers
+from keras.optimizers import SGD
+
+
+# All parameter gradients will be clipped to
+# a maximum norm of 1.
+#sgd = SGD(lr=learning_rate, momentum=momentum, decay=decay_rate, nesterov=False)
+
+#model.keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False)
+cnn.compile(optimizer='Adamax', loss='mse')
+
+cnn.summary()
+
+#changed verbose to zero
+cnn.fit(X_train, y_train, batch_size = 16, validation_data = (X_valid, y_valid), epochs=50, verbose=0)
+
+# make predictions
+predict = cnn.predict(X_test)
+# calculate root mean squared error
+testScore = math.sqrt(mean_squared_error(y_test, predict))
+print('Test Score: %.2f RMSE' % (testScore))
+
+predict_plot = pd.DataFrame(predict,index=data.index[-1806:])
+plt.plot(data)
+plt.plot(predict_plot)
+plt.show()
